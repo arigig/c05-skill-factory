@@ -63,6 +63,8 @@
       <button id="approveBtn">Approve (reviewer only)</button>
       <button id="rejectBtn">Reject (reviewer only)</button>
       <p id="decision"></p>
+      <button id="publishBtn" style="display:none;">Publish to Catalog (reviewer only)</button>
+      <p id="publishResult"></p>
     </section>
   </div>
 
@@ -119,6 +121,8 @@
     async function convert() {
       const sample_name = document.getElementById('sample').value;
       document.getElementById('decision').textContent = '';
+      document.getElementById('publishBtn').style.display = 'none';
+      document.getElementById('publishResult').textContent = '';
       const res = await authFetch('/convert', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -160,6 +164,15 @@
         return;
       }
       document.getElementById('decision').textContent = `Status: ${data.status} (by ${data.reviewer})`;
+      document.getElementById('publishBtn').style.display = data.status === 'approved' ? 'inline' : 'none';
+    }
+
+    async function publish() {
+      const res = await authFetch(`/catalog/publish/${currentRunId}`, {method: 'POST'});
+      const data = await res.json();
+      document.getElementById('publishResult').textContent = res.ok
+        ? `Published to: ${data.catalog_path}`
+        : `Error: ${data.detail}`;
     }
 
     document.getElementById('loginBtn').addEventListener('click', login);
@@ -167,6 +180,7 @@
     document.getElementById('convertBtn').addEventListener('click', convert);
     document.getElementById('approveBtn').addEventListener('click', () => review('approve'));
     document.getElementById('rejectBtn').addEventListener('click', () => review('reject'));
+    document.getElementById('publishBtn').addEventListener('click', publish);
   </script>
 </body>
 </html>

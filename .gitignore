@@ -7,3 +7,5 @@ ops/app.db
 ops/provenance/log.jsonl
 ops/cost_ledger/ledger.jsonl
 ops/generated_runs/
+ops/audit/log.jsonl
+ops/catalog/

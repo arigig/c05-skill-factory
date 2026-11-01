@@ -69,9 +69,12 @@ behind individual decisions referenced below.
    with `status = pending_review`.
 6. A human reviewer calls `/review/{run_id}/approve` or `/reject` from the
    HTML page — this is the only thing that changes a run's final status.
-   Nothing is written to a reusable catalog automatically (REQUIREMENTS.md
-   §5); that catalog-write step does not exist yet and will require its own
-   explicit approval action when built.
+7. Once approved, the reviewer can call `/catalog/publish/{run_id}`
+   (`app/catalog.py`, also exposed as the MCP tool `publish_to_catalog` in
+   `mcp_server/server.py` — ADR-0009) to write the generated code into
+   `ops/catalog/<skill>-<version>/<form_id>/<run_id>/`. This is the one
+   governed, audited, least-privilege write action in the system
+   (`ops/audit/log.jsonl`); it refuses anything not already `approved`.
 
 **Known limitation (ADR-0004):** the sandbox step needs the host's Docker
 daemon. The FastAPI app must run from the host venv (`uvicorn` directly), not

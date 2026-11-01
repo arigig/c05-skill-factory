@@ -10,6 +10,7 @@ from pydantic import BaseModel
 load_dotenv()
 
 from app.auth import Identity, get_current_identity, require_reviewer
+from app.catalog import PublishError, publish_to_catalog
 from app.db import get_connection, get_run, list_runs, set_review_decision
 from app.gateway import GatewayError, build_client
 from app.loader import MiniFormLoadError
@@ -93,6 +94,14 @@ def convert_resume(
         raise HTTPException(status_code=402, detail=str(exc))
     except GatewayError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/catalog/publish/{run_id}")
+def catalog_publish(run_id: str, identity: Identity = Depends(require_reviewer)):
+    try:
+        return publish_to_catalog(run_id, caller=identity.username)
+    except PublishError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/runs")
