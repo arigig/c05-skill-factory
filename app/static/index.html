@@ -3,9 +3,118 @@
 <head>
   <meta charset="UTF-8">
   <title>C05 Skill Factory</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; }
+    pre { background: #f0f0f0; padding: 0.5rem; overflow-x: auto; white-space: pre-wrap; }
+    .passed { color: green; font-weight: bold; }
+    .failed { color: red; font-weight: bold; }
+    button { margin-right: 0.5rem; }
+  </style>
 </head>
 <body>
   <h1>C05 Skill Factory</h1>
-  <p>Application Migration Skill Factory — Iteration 1 skeleton.</p>
+  <p>Application Migration Skill Factory — convert a MiniForm sample, then approve or reject it.</p>
+
+  <section>
+    <label for="sample">Sample form:</label>
+    <select id="sample"></select>
+    <button id="convertBtn">Convert</button>
+  </section>
+
+  <section id="result" style="display:none;">
+    <h2>Run <span id="runId"></span></h2>
+    <p>Sandbox result: <span id="sandboxStatus"></span></p>
+    <pre id="sandboxOutput"></pre>
+
+    <h2>1. Source (MiniForm export)</h2>
+    <pre id="sourceMiniform"></pre>
+
+    <h2>2. Canonical schema (intermediate)</h2>
+    <pre id="sourceCanonical"></pre>
+
+    <h2>3. Generated target code (Python)</h2>
+    <h3>Pydantic model</h3>
+    <pre id="codeModel"></pre>
+    <h3>Rule functions</h3>
+    <pre id="codeRules"></pre>
+    <h3>FastAPI endpoint</h3>
+    <pre id="codeEndpoint"></pre>
+    <h3>pytest tests</h3>
+    <pre id="codeTests"></pre>
+    <label for="reviewer">Reviewer name:</label>
+    <input id="reviewer" value="reviewer1">
+    <br><br>
+    <label for="note">Note (optional):</label>
+    <input id="note" size="50" placeholder="e.g. sandbox failed: missing email-validator dependency">
+    <br><br>
+    <button id="approveBtn">Approve</button>
+    <button id="rejectBtn">Reject</button>
+    <p id="decision"></p>
+  </section>
+
+  <script>
+    let currentRunId = null;
+
+    async function loadSamples() {
+      const res = await fetch('/samples');
+      const data = await res.json();
+      const select = document.getElementById('sample');
+      select.innerHTML = '';
+      data.samples.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    }
+
+    async function convert() {
+      const sample_name = document.getElementById('sample').value;
+      document.getElementById('decision').textContent = '';
+      const res = await fetch('/convert', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sample_name})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('runId').textContent = '';
+        document.getElementById('sandboxStatus').innerHTML = '<span class="failed">request failed</span>';
+        document.getElementById('sandboxOutput').textContent = JSON.stringify(data, null, 2);
+        return;
+      }
+      currentRunId = data.run_id;
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('runId').textContent = data.run_id;
+      document.getElementById('sandboxStatus').innerHTML = data.sandbox_passed
+        ? '<span class="passed">PASSED</span>' : '<span class="failed">FAILED</span>';
+      document.getElementById('sandboxOutput').textContent = data.sandbox_stdout;
+      document.getElementById('sourceMiniform').textContent = data.source_miniform_json || '';
+      document.getElementById('sourceCanonical').textContent = JSON.stringify(data.source_canonical_form || {}, null, 2);
+      const code = data.generated_code || {};
+      document.getElementById('codeModel').textContent = code.pydantic_model || '';
+      document.getElementById('codeRules').textContent = code.rule_functions || '';
+      document.getElementById('codeEndpoint').textContent = code.fastapi_endpoint || '';
+      document.getElementById('codeTests').textContent = code.pytest_tests || '';
+    }
+
+    async function review(decision) {
+      const reviewer = document.getElementById('reviewer').value;
+      const note = document.getElementById('note').value;
+      const res = await fetch(`/review/${currentRunId}/${decision}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({reviewer, note})
+      });
+      const data = await res.json();
+      document.getElementById('decision').textContent = `Status: ${data.status}`;
+    }
+
+    document.getElementById('convertBtn').addEventListener('click', convert);
+    document.getElementById('approveBtn').addEventListener('click', () => review('approve'));
+    document.getElementById('rejectBtn').addEventListener('click', () => review('reject'));
+    loadSamples();
+  </script>
 </body>
 </html>

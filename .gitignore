@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+ops/app.db
+ops/provenance/log.jsonl
+ops/cost_ledger/ledger.jsonl
+ops/generated_runs/
