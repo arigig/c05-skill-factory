@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Edit(.env)",
+      "Write(.env)",
+      "Bash(git add .env)",
+      "Bash(git commit -a)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(docker compose down*)",
+      "Bash(git reset*)",
+      "Bash(git checkout -- *)"
+    ]
+  }
+}
