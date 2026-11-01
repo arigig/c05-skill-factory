@@ -9,54 +9,102 @@
     .passed { color: green; font-weight: bold; }
     .failed { color: red; font-weight: bold; }
     button { margin-right: 0.5rem; }
+    #loggedInBar { background: #eef; padding: 0.5rem; margin-bottom: 1rem; display: none; }
   </style>
 </head>
 <body>
   <h1>C05 Skill Factory</h1>
   <p>Application Migration Skill Factory — convert a MiniForm sample, then approve or reject it.</p>
 
-  <section>
-    <label for="sample">Sample form:</label>
-    <select id="sample"></select>
-    <button id="convertBtn">Convert</button>
+  <section id="loginSection">
+    <label for="username">Username:</label>
+    <input id="username">
+    <label for="password">Password:</label>
+    <input id="password" type="password">
+    <button id="loginBtn">Log in</button>
+    <p id="loginError" class="failed"></p>
   </section>
 
-  <section id="result" style="display:none;">
-    <h2>Run <span id="runId"></span></h2>
-    <p>Sandbox result: <span id="sandboxStatus"></span></p>
-    <pre id="sandboxOutput"></pre>
+  <div id="loggedInBar">
+    Logged in as <strong id="whoami"></strong> — <button id="logoutBtn">Log out</button>
+  </div>
 
-    <h2>1. Source (MiniForm export)</h2>
-    <pre id="sourceMiniform"></pre>
+  <div id="app" style="display:none;">
+    <section>
+      <label for="sample">Sample form:</label>
+      <select id="sample"></select>
+      <button id="convertBtn">Convert</button>
+    </section>
 
-    <h2>2. Canonical schema (intermediate)</h2>
-    <pre id="sourceCanonical"></pre>
+    <section id="result" style="display:none;">
+      <h2>Run <span id="runId"></span></h2>
+      <p>Sandbox result: <span id="sandboxStatus"></span></p>
+      <pre id="sandboxOutput"></pre>
 
-    <h2>3. Generated target code (Python)</h2>
-    <h3>Pydantic model</h3>
-    <pre id="codeModel"></pre>
-    <h3>Rule functions</h3>
-    <pre id="codeRules"></pre>
-    <h3>FastAPI endpoint</h3>
-    <pre id="codeEndpoint"></pre>
-    <h3>pytest tests</h3>
-    <pre id="codeTests"></pre>
-    <label for="reviewer">Reviewer name:</label>
-    <input id="reviewer" value="reviewer1">
-    <br><br>
-    <label for="note">Note (optional):</label>
-    <input id="note" size="50" placeholder="e.g. sandbox failed: missing email-validator dependency">
-    <br><br>
-    <button id="approveBtn">Approve</button>
-    <button id="rejectBtn">Reject</button>
-    <p id="decision"></p>
-  </section>
+      <h2>1. Source (MiniForm export)</h2>
+      <pre id="sourceMiniform"></pre>
+
+      <h2>2. Canonical schema (intermediate)</h2>
+      <pre id="sourceCanonical"></pre>
+
+      <h2>3. Generated target code (Python)</h2>
+      <h3>Pydantic model</h3>
+      <pre id="codeModel"></pre>
+      <h3>Rule functions</h3>
+      <pre id="codeRules"></pre>
+      <h3>FastAPI endpoint</h3>
+      <pre id="codeEndpoint"></pre>
+      <h3>pytest tests</h3>
+      <pre id="codeTests"></pre>
+
+      <label for="note">Note (optional):</label>
+      <input id="note" size="50" placeholder="e.g. sandbox failed: missing email-validator dependency">
+      <br><br>
+      <button id="approveBtn">Approve (reviewer only)</button>
+      <button id="rejectBtn">Reject (reviewer only)</button>
+      <p id="decision"></p>
+    </section>
+  </div>
 
   <script>
+    let authHeader = null;
     let currentRunId = null;
 
+    function authFetch(url, options = {}) {
+      options.headers = Object.assign({}, options.headers, {Authorization: authHeader});
+      return fetch(url, options);
+    }
+
+    async function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      authHeader = 'Basic ' + btoa(`${username}:${password}`);
+      const res = await authFetch('/whoami');
+      if (!res.ok) {
+        authHeader = null;
+        document.getElementById('loginError').textContent = 'Login failed: invalid credentials.';
+        return;
+      }
+      const who = await res.json();
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('loggedInBar').style.display = 'block';
+      document.getElementById('whoami').textContent = `${who.username} (${who.role})`;
+      document.getElementById('app').style.display = 'block';
+      loadSamples();
+    }
+
+    function logout() {
+      authHeader = null;
+      document.getElementById('loginSection').style.display = 'block';
+      document.getElementById('loggedInBar').style.display = 'none';
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+    }
+
     async function loadSamples() {
-      const res = await fetch('/samples');
+      const res = await authFetch('/samples');
       const data = await res.json();
       const select = document.getElementById('sample');
       select.innerHTML = '';
@@ -71,7 +119,7 @@
     async function convert() {
       const sample_name = document.getElementById('sample').value;
       document.getElementById('decision').textContent = '';
-      const res = await fetch('/convert', {
+      const res = await authFetch('/convert', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({sample_name})
@@ -100,21 +148,25 @@
     }
 
     async function review(decision) {
-      const reviewer = document.getElementById('reviewer').value;
       const note = document.getElementById('note').value;
-      const res = await fetch(`/review/${currentRunId}/${decision}`, {
+      const res = await authFetch(`/review/${currentRunId}/${decision}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({reviewer, note})
+        body: JSON.stringify({note})
       });
       const data = await res.json();
-      document.getElementById('decision').textContent = `Status: ${data.status}`;
+      if (!res.ok) {
+        document.getElementById('decision').textContent = `Error: ${data.detail}`;
+        return;
+      }
+      document.getElementById('decision').textContent = `Status: ${data.status} (by ${data.reviewer})`;
     }
 
+    document.getElementById('loginBtn').addEventListener('click', login);
+    document.getElementById('logoutBtn').addEventListener('click', logout);
     document.getElementById('convertBtn').addEventListener('click', convert);
     document.getElementById('approveBtn').addEventListener('click', () => review('approve'));
     document.getElementById('rejectBtn').addEventListener('click', () => review('reject'));
-    loadSamples();
   </script>
 </body>
 </html>

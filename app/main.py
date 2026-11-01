@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
+from app.auth import Identity, get_current_identity, require_reviewer
 from app.db import get_connection, get_run, list_runs, set_review_decision
 from app.gateway import GatewayError, build_client
 from app.loader import MiniFormLoadError
@@ -32,7 +33,6 @@ class ConvertRequest(BaseModel):
 
 
 class ReviewRequest(BaseModel):
-    reviewer: str
     note: str = ""
 
 
@@ -50,13 +50,22 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/whoami")
+def whoami(identity: Identity = Depends(get_current_identity)):
+    return {"username": identity.username, "role": identity.role}
+
+
 @app.get("/samples")
-def samples():
+def samples(identity: Identity = Depends(get_current_identity)):
     return {"samples": list(SAMPLE_FORMS.keys())}
 
 
 @app.post("/convert")
-def convert(payload: ConvertRequest, client: anthropic.Anthropic = Depends(get_anthropic_client)):
+def convert(
+    payload: ConvertRequest,
+    identity: Identity = Depends(get_current_identity),
+    client: anthropic.Anthropic = Depends(get_anthropic_client),
+):
     sample_path = SAMPLE_FORMS.get(payload.sample_name)
     if sample_path is None:
         raise HTTPException(status_code=400, detail=f"unknown sample_name: {payload.sample_name!r}")
@@ -71,13 +80,13 @@ def convert(payload: ConvertRequest, client: anthropic.Anthropic = Depends(get_a
 
 
 @app.get("/runs")
-def runs():
+def runs(identity: Identity = Depends(get_current_identity)):
     conn = get_connection()
     return list_runs(conn)
 
 
 @app.get("/runs/{run_id}")
-def run_detail(run_id: str):
+def run_detail(run_id: str, identity: Identity = Depends(get_current_identity)):
     conn = get_connection()
     run = get_run(conn, run_id)
     if run is None:
@@ -86,22 +95,22 @@ def run_detail(run_id: str):
 
 
 @app.post("/review/{run_id}/approve")
-def approve(run_id: str, payload: ReviewRequest):
+def approve(run_id: str, payload: ReviewRequest, identity: Identity = Depends(require_reviewer)):
     conn = get_connection()
     if get_run(conn, run_id) is None:
         raise HTTPException(status_code=404, detail="run not found")
     set_review_decision(
-        conn, run_id, "approved", payload.reviewer, datetime.now(timezone.utc).isoformat(), payload.note
+        conn, run_id, "approved", identity.username, datetime.now(timezone.utc).isoformat(), payload.note
     )
     return get_run(conn, run_id)
 
 
 @app.post("/review/{run_id}/reject")
-def reject(run_id: str, payload: ReviewRequest):
+def reject(run_id: str, payload: ReviewRequest, identity: Identity = Depends(require_reviewer)):
     conn = get_connection()
     if get_run(conn, run_id) is None:
         raise HTTPException(status_code=404, detail="run not found")
     set_review_decision(
-        conn, run_id, "rejected", payload.reviewer, datetime.now(timezone.utc).isoformat(), payload.note
+        conn, run_id, "rejected", identity.username, datetime.now(timezone.utc).isoformat(), payload.note
     )
     return get_run(conn, run_id)
