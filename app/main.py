@@ -14,7 +14,7 @@ from app.db import get_connection, get_run, list_runs, set_review_decision
 from app.gateway import GatewayError, build_client
 from app.loader import MiniFormLoadError
 from app.cost_ledger import BudgetExceededError
-from app.pipeline import run_conversion_pipeline
+from app.pipeline import resume_conversion, run_conversion_pipeline
 
 app = FastAPI(title="C05 Skill Factory")
 
@@ -73,6 +73,22 @@ def convert(
         return run_conversion_pipeline(client, sample_path)
     except MiniFormLoadError as exc:
         raise HTTPException(status_code=400, detail=f"input rejected: {exc}")
+    except BudgetExceededError as exc:
+        raise HTTPException(status_code=402, detail=str(exc))
+    except GatewayError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/convert/{run_id}/resume")
+def convert_resume(
+    run_id: str,
+    identity: Identity = Depends(get_current_identity),
+    client: anthropic.Anthropic = Depends(get_anthropic_client),
+):
+    try:
+        return resume_conversion(client, run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     except BudgetExceededError as exc:
         raise HTTPException(status_code=402, detail=str(exc))
     except GatewayError as exc:

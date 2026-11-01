@@ -1,4 +1,9 @@
-"""SQLite-backed storage for conversion runs and reviewer decisions."""
+"""SQLite-backed storage for conversion runs, checkpoints and reviewer
+decisions. A run moves through stages: 'loaded' -> 'converted' ->
+'validated'. Each stage's data is persisted as soon as it completes, so
+resume_conversion() (app/pipeline.py) can pick up after a crash without
+redoing — and re-paying for — a step that already succeeded.
+"""
 import json
 import sqlite3
 from pathlib import Path
@@ -9,6 +14,10 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversion_runs (
     run_id TEXT PRIMARY KEY,
     form_id TEXT NOT NULL,
+    source_miniform_path TEXT NOT NULL,
+    skill_name TEXT,
+    skill_version TEXT,
+    stage TEXT NOT NULL,
     status TEXT NOT NULL,
     sandbox_passed INTEGER,
     generated_code TEXT,
@@ -20,6 +29,15 @@ CREATE TABLE IF NOT EXISTS conversion_runs (
 );
 """
 
+# Columns added after the original schema; added defensively via ALTER TABLE
+# so an existing ops/app.db from an earlier iteration keeps working.
+MIGRATION_COLUMNS = [
+    ("source_miniform_path", "TEXT NOT NULL DEFAULT ''"),
+    ("skill_name", "TEXT"),
+    ("skill_version", "TEXT"),
+    ("stage", "TEXT NOT NULL DEFAULT 'validated'"),
+]
+
 
 def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
@@ -27,32 +45,53 @@ def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute(SCHEMA)
+    for column, definition in MIGRATION_COLUMNS:
+        try:
+            conn.execute(f"ALTER TABLE conversion_runs ADD COLUMN {column} {definition}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.commit()
     return conn
 
 
-def create_run(
+def start_run(
     conn: sqlite3.Connection,
     run_id: str,
     form_id: str,
-    generated_code: dict,
-    sandbox_result: dict,
+    source_miniform_path: str,
+    skill_name: str,
+    skill_version: str,
     created_at: str,
 ) -> None:
     conn.execute(
         """
         INSERT INTO conversion_runs
-            (run_id, form_id, status, sandbox_passed, generated_code, sandbox_output, created_at)
-        VALUES (?, ?, 'pending_review', ?, ?, ?, ?)
+            (run_id, form_id, source_miniform_path, skill_name, skill_version,
+             stage, status, created_at)
+        VALUES (?, ?, ?, ?, ?, 'loaded', 'in_progress', ?)
         """,
-        (
-            run_id,
-            form_id,
-            int(sandbox_result["passed"]),
-            json.dumps(generated_code),
-            json.dumps(sandbox_result),
-            created_at,
-        ),
+        (run_id, form_id, source_miniform_path, skill_name, skill_version, created_at),
+    )
+    conn.commit()
+
+
+def mark_converted(conn: sqlite3.Connection, run_id: str, generated_code: dict) -> None:
+    conn.execute(
+        "UPDATE conversion_runs SET stage = 'converted', generated_code = ? WHERE run_id = ?",
+        (json.dumps(generated_code), run_id),
+    )
+    conn.commit()
+
+
+def mark_validated(conn: sqlite3.Connection, run_id: str, sandbox_result: dict) -> None:
+    conn.execute(
+        """
+        UPDATE conversion_runs
+        SET stage = 'validated', status = 'pending_review',
+            sandbox_passed = ?, sandbox_output = ?
+        WHERE run_id = ?
+        """,
+        (int(sandbox_result["passed"]), json.dumps(sandbox_result), run_id),
     )
     conn.commit()
 

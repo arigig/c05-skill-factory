@@ -5,6 +5,7 @@ being converted is untrusted data sent as the user message content.
 from pathlib import Path
 
 import anthropic
+import yaml
 
 from app.canonical import CanonicalForm
 from app.gateway import call_structured
@@ -26,6 +27,14 @@ OUTPUT_SCHEMA = {
 
 def load_skill_instructions() -> str:
     return SKILL_PATH.read_text(encoding="utf-8")
+
+
+def get_skill_identity() -> tuple[str, str]:
+    """Returns (name, version) parsed from the Skill's YAML frontmatter."""
+    text = SKILL_PATH.read_text(encoding="utf-8")
+    _, frontmatter, _ = text.split("---", 2)
+    meta = yaml.safe_load(frontmatter)
+    return meta["name"], meta["version"]
 
 
 def convert_form(client: anthropic.Anthropic, canonical_form: CanonicalForm, purpose: str = "miniform_to_python") -> dict:
