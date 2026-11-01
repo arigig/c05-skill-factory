@@ -1,0 +1,16 @@
+{
+  "form": {
+    "id": "missing_pieces",
+    "name": "Missing Pieces Form",
+    "fields": [
+      {"key": "title", "label": "Title", "type": "string", "required": true}
+    ]
+  },
+  "rules": [
+    {"id": "title_required", "field": "title", "expression": "len(title) > 0", "message": "Title is required."}
+  ],
+  "workflow": {
+    "name": "no_approvals",
+    "approvals": []
+  }
+}

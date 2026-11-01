@@ -1,0 +1,20 @@
+{
+  "form": {
+    "id": "bad_field_type",
+    "name": "Bad Field Type Form",
+    "fields": [
+      {"key": "comment", "label": "Comment", "type": "freetext", "required": false},
+      {"key": "amount", "label": "Amount", "type": "number", "required": true}
+    ]
+  },
+  "rules": [
+    {"id": "amount_positive", "field": "amount", "expression": "amount > 0", "message": "Amount must be greater than zero."},
+    {"id": "comment_optional", "field": "comment", "expression": "true", "message": "No constraint."}
+  ],
+  "workflow": {
+    "name": "bad_approval",
+    "approvals": [
+      {"role": "manager", "action": "approve"}
+    ]
+  }
+}

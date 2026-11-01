@@ -1,0 +1,22 @@
+{
+  "form": {
+    "id": "equipment_request",
+    "name": "Equipment Request",
+    "fields": [
+      {"key": "requester_name", "label": "Requester Name", "type": "string", "required": true},
+      {"key": "item_name", "label": "Item Name", "type": "string", "required": true},
+      {"key": "quantity", "label": "Quantity", "type": "number", "required": true},
+      {"key": "urgent", "label": "Urgent", "type": "boolean", "required": false}
+    ]
+  },
+  "rules": [
+    {"id": "quantity_positive", "field": "quantity", "expression": "quantity > 0", "message": "Quantity must be greater than zero."},
+    {"id": "item_name_required", "field": "item_name", "expression": "len(item_name) > 0", "message": "Item name is required."}
+  ],
+  "workflow": {
+    "name": "equipment_approval",
+    "approvals": [
+      {"role": "it_admin", "action": "approve"}
+    ]
+  }
+}

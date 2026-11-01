@@ -1,0 +1,53 @@
+{
+  "form_id": "expense_request",
+  "name": "Expense Request",
+  "fields": [
+    {
+      "name": "employee_name",
+      "label": "Employee Name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "amount",
+      "label": "Amount",
+      "type": "number",
+      "required": true
+    },
+    {
+      "name": "expense_date",
+      "label": "Expense Date",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "string",
+      "required": false
+    }
+  ],
+  "rules": [
+    {
+      "name": "amount_positive",
+      "field": "amount",
+      "expression": "amount > 0",
+      "message": "Amount must be greater than zero."
+    },
+    {
+      "name": "date_not_future",
+      "field": "expense_date",
+      "expression": "expense_date <= today()",
+      "message": "Expense date cannot be in the future."
+    }
+  ],
+  "workflow": {
+    "name": "expense_approval",
+    "steps": [
+      {
+        "role": "manager",
+        "action": "approve"
+      }
+    ]
+  }
+}

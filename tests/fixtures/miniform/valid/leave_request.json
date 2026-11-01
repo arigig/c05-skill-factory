@@ -1,0 +1,23 @@
+{
+  "form": {
+    "id": "leave_request",
+    "name": "Leave Request",
+    "fields": [
+      {"key": "employee_email", "label": "Employee Email", "type": "email", "required": true},
+      {"key": "start_date", "label": "Start Date", "type": "date", "required": true},
+      {"key": "end_date", "label": "End Date", "type": "date", "required": true},
+      {"key": "is_paid", "label": "Is Paid Leave", "type": "boolean", "required": true}
+    ]
+  },
+  "rules": [
+    {"id": "end_after_start", "field": "end_date", "expression": "end_date >= start_date", "message": "End date must be on or after start date."},
+    {"id": "email_required", "field": "employee_email", "expression": "len(employee_email) > 0", "message": "Employee email is required."}
+  ],
+  "workflow": {
+    "name": "leave_approval",
+    "approvals": [
+      {"role": "manager", "action": "approve"},
+      {"role": "hr", "action": "approve"}
+    ]
+  }
+}
